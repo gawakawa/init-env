@@ -5,7 +5,7 @@ use std::process::Command;
 use cliclack::{confirm, input, intro, log, outro, outro_cancel, select};
 
 const DEFAULT_OWNER: &str = "gawakawa";
-const FLAKE_TEMPLATES_PATH: &str = "/home/iota/projects/github.com/gawakawa/flake-templates";
+const FLAKE_TEMPLATES_REPO: &str = "gawakawa/flake-templates";
 
 // (name, hint) for the template select prompt.
 const TEMPLATES: &[(&str, &str)] = &[
@@ -128,11 +128,14 @@ fn create_repo(repo: &str, visibility: &str) -> io::Result<()> {
     )
 }
 
+fn ghq_root() -> io::Result<PathBuf> {
+    Ok(PathBuf::from(capture("ghq", &["root"])?))
+}
+
 fn clone_repo(repo: &str) -> io::Result<PathBuf> {
     log::step(format!("Cloning {repo}"))?;
     run("ghq", &["get", "-p", repo])?;
-    let root = capture("ghq", &["root"])?;
-    Ok(PathBuf::from(root).join("github.com").join(repo))
+    Ok(ghq_root()?.join("github.com").join(repo))
 }
 
 const SECRETS: &[(&str, &str)] = &[
@@ -155,7 +158,8 @@ fn set_secrets(repo: &str) -> io::Result<()> {
 fn apply_template(template: &str, dir: &Path) -> io::Result<()> {
     log::step(format!("Applying template {template}"))?;
 
-    let template_ref = format!("path:{FLAKE_TEMPLATES_PATH}#{template}");
+    let templates_path = ghq_root()?.join("github.com").join(FLAKE_TEMPLATES_REPO);
+    let template_ref = format!("path:{}#{template}", templates_path.display());
     run_in(dir, "nix", &["flake", "init", "-t", &template_ref])?;
     run_in(dir, "git", &["add", "-A"])?;
     run_in(
