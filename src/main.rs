@@ -33,13 +33,7 @@ fn main() -> io::Result<()> {
 
     let Ok(owner) = input("GitHub owner")
         .default_input(DEFAULT_OWNER)
-        .validate(|input: &String| {
-            if input.contains('/') {
-                Err("Owner must not contain slashes".to_string())
-            } else {
-                Ok(())
-            }
-        })
+        .validate(|input: &String| no_slashes(input, "Owner"))
         .interact::<String>()
     else {
         outro_cancel("Cancelled")?;
@@ -47,13 +41,7 @@ fn main() -> io::Result<()> {
     };
 
     let Ok(name) = input("Repository name")
-        .validate(|input: &String| {
-            if input.contains('/') {
-                Err("Name must not contain slashes".to_string())
-            } else {
-                Ok(())
-            }
-        })
+        .validate(|input: &String| no_slashes(input, "Name"))
         .interact::<String>()
     else {
         outro_cancel("Cancelled")?;
@@ -96,6 +84,14 @@ fn main() -> io::Result<()> {
     }
 
     Ok(())
+}
+
+fn no_slashes(value: &str, field: &str) -> Result<(), String> {
+    if value.contains('/') {
+        Err(format!("{field} must not contain slashes"))
+    } else {
+        Ok(())
+    }
 }
 
 fn init_repo(
