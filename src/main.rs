@@ -1,20 +1,191 @@
-use cliclack::{intro, outro, outro_cancel, select};
+use std::io;
+use std::path::{Path, PathBuf};
 
-fn main() -> std::io::Result<()> {
+use cliclack::{confirm, input, intro, log, outro, outro_cancel, select};
+
+mod exec;
+use exec::{capture, run, run_in, run_with_stdin};
+
+const DEFAULT_OWNER: &str = "gawakawa";
+const FLAKE_TEMPLATES_REPO: &str = "gawakawa/flake-templates";
+const SKIP_TEMPLATE: &str = "skip";
+
+// (name, hint) for the template select prompt.
+const TEMPLATES: &[(&str, &str)] = &[
+    (SKIP_TEMPLATE, "Do not apply a template"),
+    ("crane", "Rust template, using crane"),
+    ("crane-workspace", "Rust workspace template, using crane"),
+    ("deno", "Deno template"),
+    ("flake-parts", "Modular flake with flake-parts"),
+    ("go", "Go template"),
+    ("haskell", "Haskell template, using haskell.nix and hix"),
+    ("idris2", "Idris2 template"),
+    ("lean", "Lean theorem prover template, using elan"),
+    ("pack", "Idris2 template, using pack"),
+    ("pnpm", "Node.js template, using pnpm"),
+    ("purs-nix", "PureScript template, using purs-nix"),
+    ("python", "Python template, using uv"),
+    ("rust-overlay", "Rust template, using rust-overlay"),
+    ("rustup", "Rust template, using rustup"),
+    ("terraform", "Terraform template"),
+    ("uv2nix", "Python template, using uv2nix"),
+];
+
+fn main() -> io::Result<()> {
     intro("init-env")?;
 
-    let Ok(tool) = select("Select a tool for your development environment")
-        .item("node", "Node.js", "")
-        .item("python", "Python", "")
-        .item("go", "Go", "")
-        .item("rust", "Rust", "")
+    let Ok(owner) = input("GitHub owner")
+        .default_input(DEFAULT_OWNER)
+        .validate(|input: &String| no_slashes(input, "Owner"))
+        .interact::<String>()
+    else {
+        outro_cancel("Cancelled")?;
+        return Ok(());
+    };
+
+    let Ok(name) = input("Repository name")
+        .validate(|input: &String| no_slashes(input, "Name"))
+        .interact::<String>()
+    else {
+        outro_cancel("Cancelled")?;
+        return Ok(());
+    };
+
+    let Ok(visibility) = select("Repository visibility")
+        .item("--public", "Public", "")
+        .item("--private", "Private", "")
         .interact()
     else {
         outro_cancel("Cancelled")?;
         return Ok(());
     };
 
-    outro(format!("Selected: {tool}"))?;
+    let mut template_prompt = select("Flake template");
+    for (name, hint) in TEMPLATES {
+        template_prompt = template_prompt.item(*name, *name, *hint);
+    }
+    let Ok(template) = template_prompt.interact() else {
+        outro_cancel("Cancelled")?;
+        return Ok(());
+    };
+
+    let Ok(setup_secrets) = confirm("Set up GitHub Actions secrets?")
+        .initial_value(false)
+        .interact()
+    else {
+        outro_cancel("Cancelled")?;
+        return Ok(());
+    };
+
+    let repo = format!("{owner}/{name}");
+    let template = (template != SKIP_TEMPLATE).then_some(template);
+
+    match init_repo(&repo, visibility, template, setup_secrets) {
+        Ok(dir) => outro(format!("Done! Run: cd {}", dir.display()))?,
+        Err(err) => outro_cancel(format!("Failed: {err}"))?,
+    }
 
     Ok(())
+}
+
+fn no_slashes(value: &str, field: &str) -> Result<(), String> {
+    if value.contains('/') {
+        Err(format!("{field} must not contain slashes"))
+    } else {
+        Ok(())
+    }
+}
+
+fn init_repo(
+    repo: &str,
+    visibility: &str,
+    template: Option<&str>,
+    setup_secrets: bool,
+) -> io::Result<PathBuf> {
+    let dir = ghq_path(repo)?;
+    if dir.exists() {
+        return Err(io::Error::other(format!(
+            "{} already exists; remove it before retrying",
+            dir.display()
+        )));
+    }
+
+    create_repo(repo, visibility)?;
+    clone_repo(repo)?;
+
+    if setup_secrets {
+        set_secrets(repo)?;
+    }
+
+    if let Some(template) = template {
+        apply_template(template, &dir)?;
+    }
+
+    Ok(dir)
+}
+
+fn create_repo(repo: &str, visibility: &str) -> io::Result<()> {
+    log::step(format!("Creating repository {repo}"))?;
+    run("gh", &["repo", "create", repo, visibility])?;
+    run(
+        "gh",
+        &[
+            "repo",
+            "edit",
+            repo,
+            "--enable-auto-merge",
+            "--delete-branch-on-merge",
+            "--allow-update-branch",
+        ],
+    )
+}
+
+fn ghq_root() -> io::Result<PathBuf> {
+    Ok(PathBuf::from(capture("ghq", &["root"])?))
+}
+
+/// Resolves `owner/repo` to its ghq clone path: `<ghq root>/github.com/owner/repo`.
+fn ghq_path(repo: &str) -> io::Result<PathBuf> {
+    Ok(ghq_root()?.join("github.com").join(repo))
+}
+
+fn clone_repo(repo: &str) -> io::Result<()> {
+    log::step(format!("Cloning {repo}"))?;
+    run("ghq", &["get", "-p", repo])
+}
+
+const SECRETS: &[(&str, &str)] = &[
+    ("BOT_APP_ID", "github/apps/gawakawa-bot/app-id"),
+    ("BOT_PRIVATE_KEY", "github/apps/gawakawa-bot/private-key"),
+    ("CACHIX_AUTH_TOKEN", "cachix/auth-token"),
+];
+
+fn set_secrets(repo: &str) -> io::Result<()> {
+    log::step("Setting GitHub Actions secrets")?;
+
+    for (name, pass_path) in SECRETS {
+        let value = capture("pass", &["show", pass_path])?;
+        run_with_stdin("gh", &["secret", "set", name, "-R", repo], &value)?;
+    }
+
+    Ok(())
+}
+
+fn apply_template(template: &str, dir: &Path) -> io::Result<()> {
+    log::step(format!("Applying template {template}"))?;
+
+    let templates_path = ghq_path(FLAKE_TEMPLATES_REPO)?;
+    let template_ref = format!("path:{}#{template}", templates_path.display());
+    run_in(dir, "nix", &["flake", "init", "-t", &template_ref])?;
+    run_in(dir, "git", &["add", "-A"])?;
+    run_in(
+        dir,
+        "git",
+        &[
+            "commit",
+            "-m",
+            &format!(":tada: Initialize from {template} template"),
+        ],
+    )?;
+    run_in(dir, "git", &["push", "-u", "origin", "HEAD"])
 }
