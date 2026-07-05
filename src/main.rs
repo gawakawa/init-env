@@ -135,17 +135,17 @@ fn clone_repo(repo: &str) -> io::Result<PathBuf> {
     Ok(PathBuf::from(root).join("github.com").join(repo))
 }
 
-const SECRETS: &[(&str, &[&str])] = &[
-    ("BOT_APP_ID", &["github/apps/gawakawa-bot/app-id"]),
-    ("BOT_PRIVATE_KEY", &["github/apps/gawakawa-bot/private-key"]),
-    ("CACHIX_AUTH_TOKEN", &["show", "cachix/auth-token"]),
+const SECRETS: &[(&str, &str)] = &[
+    ("BOT_APP_ID", "github/apps/gawakawa-bot/app-id"),
+    ("BOT_PRIVATE_KEY", "github/apps/gawakawa-bot/private-key"),
+    ("CACHIX_AUTH_TOKEN", "cachix/auth-token"),
 ];
 
 fn set_secrets(repo: &str) -> io::Result<()> {
     log::step("Setting GitHub Actions secrets")?;
 
-    for (name, pass_args) in SECRETS {
-        let value = capture("pass", pass_args)?;
+    for (name, pass_path) in SECRETS {
+        let value = capture("pass", &["show", pass_path])?;
         run("gh", &["secret", "set", name, "-b", &value, "-R", repo])?;
     }
 
