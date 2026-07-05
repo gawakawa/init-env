@@ -240,6 +240,9 @@ fn spawn_error(program: &str, err: io::Error) -> io::Error {
     io::Error::other(format!("failed to run `{program}`: {err}"))
 }
 
+/// `stderr` is `Some` only for callers that captured output via `.output()`
+/// (see `capture`). Callers that inherit stdio (`run`, `run_with_stdin`,
+/// `run_in`) never have a captured buffer to pass, so they always pass `None`.
 fn check_status(
     program: &str,
     args: &[&str],
