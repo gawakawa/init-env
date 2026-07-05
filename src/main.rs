@@ -137,42 +137,21 @@ fn clone_repo(repo: &str) -> io::Result<PathBuf> {
     Ok(PathBuf::from(root).join("github.com").join(repo))
 }
 
+const SECRETS: &[(&str, &[&str])] = &[
+    ("BOT_APP_ID", &["github/apps/gawakawa-bot/app-id"]),
+    ("BOT_PRIVATE_KEY", &["github/apps/gawakawa-bot/private-key"]),
+    ("CACHIX_AUTH_TOKEN", &["show", "cachix/auth-token"]),
+];
+
 fn set_secrets(repo: &str) -> io::Result<()> {
     log::step("Setting GitHub Actions secrets")?;
 
-    let app_id = capture("pass", &["github/apps/gawakawa-bot/app-id"])?;
-    run(
-        "gh",
-        &["secret", "set", "BOT_APP_ID", "-b", &app_id, "-R", repo],
-    )?;
+    for (name, pass_args) in SECRETS {
+        let value = capture("pass", pass_args)?;
+        run("gh", &["secret", "set", name, "-b", &value, "-R", repo])?;
+    }
 
-    let private_key = capture("pass", &["github/apps/gawakawa-bot/private-key"])?;
-    run(
-        "gh",
-        &[
-            "secret",
-            "set",
-            "BOT_PRIVATE_KEY",
-            "-b",
-            &private_key,
-            "-R",
-            repo,
-        ],
-    )?;
-
-    let cachix_token = capture("pass", &["show", "cachix/auth-token"])?;
-    run(
-        "gh",
-        &[
-            "secret",
-            "set",
-            "CACHIX_AUTH_TOKEN",
-            "-b",
-            &cachix_token,
-            "-R",
-            repo,
-        ],
-    )
+    Ok(())
 }
 
 fn apply_template(template: &str, dir: &Path) -> io::Result<()> {
