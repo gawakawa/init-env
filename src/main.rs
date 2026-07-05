@@ -100,8 +100,16 @@ fn init_repo(
     template: Option<&str>,
     setup_secrets: bool,
 ) -> io::Result<PathBuf> {
+    let dir = ghq_path(repo)?;
+    if dir.exists() {
+        return Err(io::Error::other(format!(
+            "{} already exists; remove it before retrying",
+            dir.display()
+        )));
+    }
+
     create_repo(repo, visibility)?;
-    let dir = clone_repo(repo)?;
+    clone_repo(repo)?;
 
     if setup_secrets {
         set_secrets(repo)?;
@@ -139,19 +147,9 @@ fn ghq_path(repo: &str) -> io::Result<PathBuf> {
     Ok(ghq_root()?.join("github.com").join(repo))
 }
 
-fn clone_repo(repo: &str) -> io::Result<PathBuf> {
+fn clone_repo(repo: &str) -> io::Result<()> {
     log::step(format!("Cloning {repo}"))?;
-
-    let dir = ghq_path(repo)?;
-    if dir.exists() {
-        return Err(io::Error::other(format!(
-            "{} already exists; remove it before retrying",
-            dir.display()
-        )));
-    }
-
-    run("ghq", &["get", "-p", repo])?;
-    Ok(dir)
+    run("ghq", &["get", "-p", repo])
 }
 
 const SECRETS: &[(&str, &str)] = &[
