@@ -49,8 +49,8 @@ fn main() -> io::Result<()> {
     };
 
     let Ok(visibility) = select("Repository visibility")
-        .item("public", "Public", "")
-        .item("private", "Private", "")
+        .item("--public", "Public", "")
+        .item("--private", "Private", "")
         .interact()
     else {
         outro_cancel("Cancelled")?;
@@ -114,7 +114,7 @@ fn init_repo(
 
 fn create_repo(repo: &str, visibility: &str) -> io::Result<()> {
     log::step(format!("Creating repository {repo}"))?;
-    run("gh", &["repo", "create", repo, &format!("--{visibility}")])?;
+    run("gh", &["repo", "create", repo, visibility])?;
     run(
         "gh",
         &[
