@@ -7,45 +7,25 @@ use cliclack::{confirm, input, intro, log, outro, outro_cancel, select};
 const DEFAULT_OWNER: &str = "gawakawa";
 const FLAKE_TEMPLATES_PATH: &str = "/home/iota/projects/github.com/gawakawa/flake-templates";
 
-// (value, label, hint) for the template select prompt.
-const TEMPLATES: &[(&str, &str, &str)] = &[
-    ("skip", "skip", "Do not apply a template"),
-    ("crane", "crane", "Rust template, using crane"),
-    (
-        "crane-workspace",
-        "crane-workspace",
-        "Rust workspace template, using crane",
-    ),
-    ("deno", "deno", "Deno template"),
-    (
-        "flake-parts",
-        "flake-parts",
-        "Modular flake with flake-parts",
-    ),
-    ("go", "go", "Go template"),
-    (
-        "haskell",
-        "haskell",
-        "Haskell template, using haskell.nix and hix",
-    ),
-    ("idris2", "idris2", "Idris2 template"),
-    ("lean", "lean", "Lean theorem prover template, using elan"),
-    ("pack", "pack", "Idris2 template, using pack"),
-    ("pnpm", "pnpm", "Node.js template, using pnpm"),
-    (
-        "purs-nix",
-        "purs-nix",
-        "PureScript template, using purs-nix",
-    ),
-    ("python", "python", "Python template, using uv"),
-    (
-        "rust-overlay",
-        "rust-overlay",
-        "Rust template, using rust-overlay",
-    ),
-    ("rustup", "rustup", "Rust template, using rustup"),
-    ("terraform", "terraform", "Terraform template"),
-    ("uv2nix", "uv2nix", "Python template, using uv2nix"),
+// (name, hint) for the template select prompt.
+const TEMPLATES: &[(&str, &str)] = &[
+    ("skip", "Do not apply a template"),
+    ("crane", "Rust template, using crane"),
+    ("crane-workspace", "Rust workspace template, using crane"),
+    ("deno", "Deno template"),
+    ("flake-parts", "Modular flake with flake-parts"),
+    ("go", "Go template"),
+    ("haskell", "Haskell template, using haskell.nix and hix"),
+    ("idris2", "Idris2 template"),
+    ("lean", "Lean theorem prover template, using elan"),
+    ("pack", "Idris2 template, using pack"),
+    ("pnpm", "Node.js template, using pnpm"),
+    ("purs-nix", "PureScript template, using purs-nix"),
+    ("python", "Python template, using uv"),
+    ("rust-overlay", "Rust template, using rust-overlay"),
+    ("rustup", "Rust template, using rustup"),
+    ("terraform", "Terraform template"),
+    ("uv2nix", "Python template, using uv2nix"),
 ];
 
 fn main() -> io::Result<()> {
@@ -89,7 +69,11 @@ fn main() -> io::Result<()> {
         return Ok(());
     };
 
-    let Ok(template) = select("Flake template").items(TEMPLATES).interact() else {
+    let mut template_prompt = select("Flake template");
+    for (name, hint) in TEMPLATES {
+        template_prompt = template_prompt.item(*name, *name, *hint);
+    }
+    let Ok(template) = template_prompt.interact() else {
         outro_cancel("Cancelled")?;
         return Ok(());
     };
