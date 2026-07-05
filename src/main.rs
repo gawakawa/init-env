@@ -140,8 +140,17 @@ fn ghq_path(repo: &str) -> io::Result<PathBuf> {
 
 fn clone_repo(repo: &str) -> io::Result<PathBuf> {
     log::step(format!("Cloning {repo}"))?;
+
+    let dir = ghq_path(repo)?;
+    if dir.exists() {
+        return Err(io::Error::other(format!(
+            "{} already exists; remove it before retrying",
+            dir.display()
+        )));
+    }
+
     run("ghq", &["get", "-p", repo])?;
-    ghq_path(repo)
+    Ok(dir)
 }
 
 const SECRETS: &[(&str, &str)] = &[
