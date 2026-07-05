@@ -5,6 +5,10 @@
 ## Requirements
 
 - [Nix](https://nixos.org/)（flakes と nix-command を有効化）
+- gh
+- ghq
+- pass
+- git
 
 ## Usage
 
