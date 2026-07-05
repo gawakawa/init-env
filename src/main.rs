@@ -6,10 +6,11 @@ use cliclack::{confirm, input, intro, log, outro, outro_cancel, select};
 
 const DEFAULT_OWNER: &str = "gawakawa";
 const FLAKE_TEMPLATES_REPO: &str = "gawakawa/flake-templates";
+const SKIP_TEMPLATE: &str = "skip";
 
 // (name, hint) for the template select prompt.
 const TEMPLATES: &[(&str, &str)] = &[
-    ("skip", "Do not apply a template"),
+    (SKIP_TEMPLATE, "Do not apply a template"),
     ("crane", "Rust template, using crane"),
     ("crane-workspace", "Rust workspace template, using crane"),
     ("deno", "Deno template"),
@@ -75,7 +76,7 @@ fn main() -> io::Result<()> {
     };
 
     let repo = format!("{owner}/{name}");
-    let template = (template != "skip").then_some(template);
+    let template = (template != SKIP_TEMPLATE).then_some(template);
 
     match init_repo(&repo, visibility, template, setup_secrets) {
         Ok(dir) => outro(format!("Done! Run: cd {}", dir.display()))?,
