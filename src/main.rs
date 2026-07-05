@@ -132,10 +132,15 @@ fn ghq_root() -> io::Result<PathBuf> {
     Ok(PathBuf::from(capture("ghq", &["root"])?))
 }
 
+/// Resolves `owner/repo` to its ghq clone path: `<ghq root>/github.com/owner/repo`.
+fn ghq_path(repo: &str) -> io::Result<PathBuf> {
+    Ok(ghq_root()?.join("github.com").join(repo))
+}
+
 fn clone_repo(repo: &str) -> io::Result<PathBuf> {
     log::step(format!("Cloning {repo}"))?;
     run("ghq", &["get", "-p", repo])?;
-    Ok(ghq_root()?.join("github.com").join(repo))
+    ghq_path(repo)
 }
 
 const SECRETS: &[(&str, &str)] = &[
@@ -158,7 +163,7 @@ fn set_secrets(repo: &str) -> io::Result<()> {
 fn apply_template(template: &str, dir: &Path) -> io::Result<()> {
     log::step(format!("Applying template {template}"))?;
 
-    let templates_path = ghq_root()?.join("github.com").join(FLAKE_TEMPLATES_REPO);
+    let templates_path = ghq_path(FLAKE_TEMPLATES_REPO)?;
     let template_ref = format!("path:{}#{template}", templates_path.display());
     run_in(dir, "nix", &["flake", "init", "-t", &template_ref])?;
     run_in(dir, "git", &["add", "-A"])?;
