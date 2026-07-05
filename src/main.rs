@@ -1,4 +1,4 @@
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -163,11 +163,7 @@ fn set_secrets(repo: &str) -> io::Result<()> {
 
     for (name, pass_path) in SECRETS {
         let value = capture("pass", &["show", pass_path])?;
-        run_redacted(
-            "gh",
-            &["secret", "set", name, "-b", &value, "-R", repo],
-            &["secret", "set", name, "-b", "<redacted>", "-R", repo],
-        )?;
+        run_with_stdin("gh", &["secret", "set", name, "-R", repo], &value)?;
     }
 
     Ok(())
@@ -201,14 +197,22 @@ fn run(program: &str, args: &[&str]) -> io::Result<()> {
     check_status(program, args, status, None)
 }
 
-/// Like `run`, but reports `display_args` instead of `args` on failure, so
-/// secret values passed in `args` never end up in an error message.
-fn run_redacted(program: &str, args: &[&str], display_args: &[&str]) -> io::Result<()> {
-    let status = Command::new(program)
+/// Like `run`, but writes `input` to the child's stdin instead of passing it
+/// as a command-line argument, so secret values never appear in the process's
+/// argument list or in an error message.
+fn run_with_stdin(program: &str, args: &[&str], input: &str) -> io::Result<()> {
+    let mut child = Command::new(program)
         .args(args)
-        .status()
+        .stdin(Stdio::piped())
+        .spawn()
         .map_err(|err| spawn_error(program, err))?;
-    check_status(program, display_args, status, None)
+    child
+        .stdin
+        .take()
+        .expect("stdin was requested via Stdio::piped()")
+        .write_all(input.as_bytes())?;
+    let status = child.wait().map_err(|err| spawn_error(program, err))?;
+    check_status(program, args, status, None)
 }
 
 /// Same as `run`, but runs the command inside `dir`.
