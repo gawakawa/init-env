@@ -1,6 +1,6 @@
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use cliclack::{confirm, input, intro, log, outro, outro_cancel, select};
 
@@ -203,7 +203,10 @@ fn run_in(dir: &Path, program: &str, args: &[&str]) -> io::Result<()> {
 
 /// Runs a command and returns its trimmed stdout.
 fn capture(program: &str, args: &[&str]) -> io::Result<String> {
-    let output = Command::new(program).args(args).output()?;
+    let output = Command::new(program)
+        .args(args)
+        .stdin(Stdio::inherit())
+        .output()?;
     check_status(program, args, output.status)?;
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
