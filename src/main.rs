@@ -75,6 +75,7 @@ fn main() -> io::Result<()> {
     };
 
     let repo = format!("{owner}/{name}");
+    let template = (template != "skip").then_some(template);
 
     match init_repo(&repo, visibility, template, setup_secrets) {
         Ok(dir) => outro(format!("Done! Run: cd {}", dir.display()))?,
@@ -95,7 +96,7 @@ fn no_slashes(value: &str, field: &str) -> Result<(), String> {
 fn init_repo(
     repo: &str,
     visibility: &str,
-    template: &str,
+    template: Option<&str>,
     setup_secrets: bool,
 ) -> io::Result<PathBuf> {
     create_repo(repo, visibility)?;
@@ -105,7 +106,7 @@ fn init_repo(
         set_secrets(repo)?;
     }
 
-    if template != "skip" {
+    if let Some(template) = template {
         apply_template(template, &dir)?;
     }
 
