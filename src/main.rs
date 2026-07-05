@@ -76,9 +76,7 @@ fn main() -> io::Result<()> {
 
     let repo = format!("{owner}/{name}");
 
-    let result = init_repo(&repo, visibility, template, setup_secrets);
-
-    match result {
+    match init_repo(&repo, visibility, template, setup_secrets) {
         Ok(dir) => outro(format!("Done! Run: cd {}", dir.display()))?,
         Err(err) => outro_cancel(format!("Failed: {err}"))?,
     }
