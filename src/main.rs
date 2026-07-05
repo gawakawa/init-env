@@ -165,7 +165,11 @@ fn set_secrets(repo: &str) -> io::Result<()> {
 
     for (name, pass_path) in SECRETS {
         let value = capture("pass", &["show", pass_path])?;
-        run("gh", &["secret", "set", name, "-b", &value, "-R", repo])?;
+        run_redacted(
+            "gh",
+            &["secret", "set", name, "-b", &value, "-R", repo],
+            &["secret", "set", name, "-b", "<redacted>", "-R", repo],
+        )?;
     }
 
     Ok(())
@@ -197,6 +201,16 @@ fn run(program: &str, args: &[&str]) -> io::Result<()> {
         .status()
         .map_err(|err| spawn_error(program, err))?;
     check_status(program, args, status)
+}
+
+/// Like `run`, but reports `display_args` instead of `args` on failure, so
+/// secret values passed in `args` never end up in an error message.
+fn run_redacted(program: &str, args: &[&str], display_args: &[&str]) -> io::Result<()> {
+    let status = Command::new(program)
+        .args(args)
+        .status()
+        .map_err(|err| spawn_error(program, err))?;
+    check_status(program, display_args, status)
 }
 
 /// Same as `run`, but runs the command inside `dir`.
