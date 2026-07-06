@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -161,14 +162,9 @@ fn fetch_templates() -> io::Result<Vec<(String, String)>> {
             r#"builtins.mapAttrs (_: t: t.description or "")"#,
         ],
     )?;
-    let value: serde_json::Value = serde_json::from_str(&json).map_err(io::Error::other)?;
-    let obj = value
-        .as_object()
-        .ok_or_else(|| io::Error::other("unexpected templates output"))?;
-    Ok(obj
-        .iter()
-        .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
-        .collect())
+    let templates: BTreeMap<String, String> = serde_json::from_str(&json)
+        .map_err(|err| io::Error::other(format!("failed to parse templates output: {err}")))?;
+    Ok(templates.into_iter().collect())
 }
 
 const SECRETS: &[(&str, &str)] = &[
