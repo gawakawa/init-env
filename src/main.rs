@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use cliclack::{confirm, input, intro, log, outro, outro_cancel, select};
+use cliclack::{confirm, input, intro, log, outro, outro_cancel, select, spinner};
 
 mod exec;
 use exec::{capture, run, run_in, run_with_stdin};
@@ -40,7 +40,7 @@ fn main() -> io::Result<()> {
         return Ok(());
     };
 
-    let spinner = cliclack::spinner();
+    let spinner = spinner();
     spinner.start("Fetching templates");
     let templates = match fetch_templates() {
         Ok(templates) => {
@@ -55,7 +55,7 @@ fn main() -> io::Result<()> {
     };
 
     let mut template_prompt =
-        select("Flake template").item(SKIP_TEMPLATE, "skip", "Do not apply a template");
+        select("Flake template").item(SKIP_TEMPLATE, SKIP_TEMPLATE, "Do not apply a template");
     for (name, hint) in &templates {
         template_prompt = template_prompt.item(name.as_str(), name.as_str(), hint.as_str());
     }
