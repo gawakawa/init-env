@@ -7,29 +7,8 @@ mod exec;
 use exec::{capture, run, run_in, run_with_stdin};
 
 const DEFAULT_OWNER: &str = "gawakawa";
-const FLAKE_TEMPLATES_REPO: &str = "gawakawa/flake-templates";
+const FLAKE_TEMPLATES_REF: &str = "github:gawakawa/flake-templates";
 const SKIP_TEMPLATE: &str = "skip";
-
-// (name, hint) for the template select prompt.
-const TEMPLATES: &[(&str, &str)] = &[
-    (SKIP_TEMPLATE, "Do not apply a template"),
-    ("crane", "Rust template, using crane"),
-    ("crane-workspace", "Rust workspace template, using crane"),
-    ("deno", "Deno template"),
-    ("flake-parts", "Modular flake with flake-parts"),
-    ("go", "Go template"),
-    ("haskell", "Haskell template, using haskell.nix and hix"),
-    ("idris2", "Idris2 template"),
-    ("lean", "Lean theorem prover template, using elan"),
-    ("pack", "Idris2 template, using pack"),
-    ("pnpm", "Node.js template, using pnpm"),
-    ("purs-nix", "PureScript template, using purs-nix"),
-    ("python", "Python template, using uv"),
-    ("rust-overlay", "Rust template, using rust-overlay"),
-    ("rustup", "Rust template, using rustup"),
-    ("terraform", "Terraform template"),
-    ("uv2nix", "Python template, using uv2nix"),
-];
 
 fn main() -> io::Result<()> {
     intro("init-env")?;
@@ -60,9 +39,24 @@ fn main() -> io::Result<()> {
         return Ok(());
     };
 
-    let mut template_prompt = select("Flake template");
-    for (name, hint) in TEMPLATES {
-        template_prompt = template_prompt.item(*name, *name, *hint);
+    let spinner = cliclack::spinner();
+    spinner.start("Fetching templates");
+    let templates = match fetch_templates() {
+        Ok(templates) => {
+            spinner.stop("Fetched templates");
+            templates
+        }
+        Err(err) => {
+            spinner.error("Failed to fetch templates");
+            outro_cancel(format!("Failed: {err}"))?;
+            return Ok(());
+        }
+    };
+
+    let mut template_prompt =
+        select("Flake template").item(SKIP_TEMPLATE, "skip", "Do not apply a template");
+    for (name, hint) in &templates {
+        template_prompt = template_prompt.item(name.as_str(), name.as_str(), hint.as_str());
     }
     let Ok(template) = template_prompt.interact() else {
         outro_cancel("Cancelled")?;
@@ -154,6 +148,29 @@ fn clone_repo(repo: &str) -> io::Result<()> {
     run("ghq", &["get", "-p", repo])
 }
 
+/// Fetches the (name, description) list of flake templates from
+/// `FLAKE_TEMPLATES_REF`, sorted alphabetically by name.
+fn fetch_templates() -> io::Result<Vec<(String, String)>> {
+    let json = capture(
+        "nix",
+        &[
+            "eval",
+            "--json",
+            &format!("{FLAKE_TEMPLATES_REF}#templates"),
+            "--apply",
+            r#"builtins.mapAttrs (_: t: t.description or "")"#,
+        ],
+    )?;
+    let value: serde_json::Value = serde_json::from_str(&json).map_err(io::Error::other)?;
+    let obj = value
+        .as_object()
+        .ok_or_else(|| io::Error::other("unexpected templates output"))?;
+    Ok(obj
+        .iter()
+        .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
+        .collect())
+}
+
 const SECRETS: &[(&str, &str)] = &[
     ("BOT_APP_ID", "github/apps/gawakawa-bot/app-id"),
     ("BOT_PRIVATE_KEY", "github/apps/gawakawa-bot/private-key"),
@@ -174,8 +191,7 @@ fn set_secrets(repo: &str) -> io::Result<()> {
 fn apply_template(template: &str, dir: &Path) -> io::Result<()> {
     log::step(format!("Applying template {template}"))?;
 
-    let templates_path = ghq_path(FLAKE_TEMPLATES_REPO)?;
-    let template_ref = format!("path:{}#{template}", templates_path.display());
+    let template_ref = format!("{FLAKE_TEMPLATES_REF}#{template}");
     run_in(dir, "nix", &["flake", "init", "-t", &template_ref])?;
     run_in(dir, "git", &["add", "-A"])?;
     run_in(

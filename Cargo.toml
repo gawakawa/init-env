@@ -8,3 +8,4 @@ license = "MIT"
 
 [dependencies]
 cliclack = "0.5.4"
+serde_json = "1"
