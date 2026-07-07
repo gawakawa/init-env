@@ -72,10 +72,24 @@ fn main() -> io::Result<()> {
         return Ok(());
     };
 
+    let Ok(setup_branch_rules) = confirm("Set up branch rules?")
+        .initial_value(true)
+        .interact()
+    else {
+        outro_cancel("Cancelled")?;
+        return Ok(());
+    };
+
     let repo = format!("{owner}/{name}");
     let template = (template != SKIP_TEMPLATE).then_some(template);
 
-    match init_repo(&repo, visibility, template, setup_secrets) {
+    match init_repo(
+        &repo,
+        visibility,
+        template,
+        setup_secrets,
+        setup_branch_rules,
+    ) {
         Ok(dir) => outro(format!("Done! Run: cd {}", dir.display()))?,
         Err(err) => outro_cancel(format!("Failed: {err}"))?,
     }
@@ -96,6 +110,7 @@ fn init_repo(
     visibility: &str,
     template: Option<&str>,
     setup_secrets: bool,
+    setup_branch_rules: bool,
 ) -> io::Result<PathBuf> {
     let dir = ghq_path(repo)?;
     if dir.exists() {
@@ -114,6 +129,10 @@ fn init_repo(
 
     if let Some(template) = template {
         apply_template(template, &dir)?;
+    }
+
+    if setup_branch_rules {
+        set_branch_rules(repo)?;
     }
 
     Ok(dir)
@@ -182,6 +201,44 @@ fn set_secrets(repo: &str) -> io::Result<()> {
     }
 
     Ok(())
+}
+
+const BRANCH_RULES_JSON: &str = r#"{
+  "name": "main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] }
+  },
+  "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" }
+  ],
+  "rules": [
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [{ "context": "ci-success" }]
+      }
+    }
+  ]
+}"#;
+
+fn set_branch_rules(repo: &str) -> io::Result<()> {
+    log::step("Setting up branch rules")?;
+    run_with_stdin(
+        "gh",
+        &[
+            "api",
+            "-X",
+            "POST",
+            &format!("repos/{repo}/rulesets"),
+            "--input",
+            "-",
+        ],
+        BRANCH_RULES_JSON,
+    )
 }
 
 fn apply_template(template: &str, dir: &Path) -> io::Result<()> {
