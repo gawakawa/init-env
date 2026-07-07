@@ -73,7 +73,7 @@ fn main() -> io::Result<()> {
     };
 
     let Ok(setup_branch_rules) = confirm("Set up branch rules?")
-        .initial_value(true)
+        .initial_value(template != SKIP_TEMPLATE)
         .interact()
     else {
         outro_cancel("Cancelled")?;
