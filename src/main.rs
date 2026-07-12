@@ -125,6 +125,9 @@ fn init_repo(
 
     if setup_secrets {
         set_secrets(repo)?;
+        if template == Some("pnpm") {
+            set_dependabot_secrets(repo)?;
+        }
     }
 
     if let Some(template) = template {
@@ -198,6 +201,30 @@ fn set_secrets(repo: &str) -> io::Result<()> {
     for (name, pass_path) in SECRETS {
         let value = capture("pass", &["show", pass_path])?;
         run_with_stdin("gh", &["secret", "set", name, "-R", repo], &value)?;
+    }
+
+    Ok(())
+}
+
+// The pnpm template's update-pnpm-hash.yml workflow runs on Dependabot PRs
+// and needs BOT_APP_ID/BOT_PRIVATE_KEY to mint a GitHub App token, but
+// Dependabot-triggered workflows can only see Dependabot secrets, not
+// Actions secrets. See https://github.com/gawakawa/prenv/pull/56.
+const DEPENDABOT_SECRETS: &[(&str, &str)] = &[
+    ("BOT_APP_ID", "github/apps/gawakawa-bot/app-id"),
+    ("BOT_PRIVATE_KEY", "github/apps/gawakawa-bot/private-key"),
+];
+
+fn set_dependabot_secrets(repo: &str) -> io::Result<()> {
+    log::step("Setting GitHub Dependabot secrets")?;
+
+    for (name, pass_path) in DEPENDABOT_SECRETS {
+        let value = capture("pass", &["show", pass_path])?;
+        run_with_stdin(
+            "gh",
+            &["secret", "set", name, "-R", repo, "--app", "dependabot"],
+            &value,
+        )?;
     }
 
     Ok(())
