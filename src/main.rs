@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use cliclack::{confirm, input, intro, log, outro, outro_cancel, select, spinner};
+use cliclack::{confirm, input, intro, log, outro, outro_cancel, outro_note, select, spinner};
 
 mod exec;
 use exec::{capture, run, run_in, run_with_stdin};
@@ -10,6 +10,7 @@ use exec::{capture, run, run_in, run_with_stdin};
 const DEFAULT_OWNER: &str = "gawakawa";
 const FLAKE_TEMPLATES_REF: &str = "github:gawakawa/flake-templates";
 const SKIP_TEMPLATE: &str = "skip";
+const GITHUB_APP_INSTALL_URL: &str = "https://github.com/settings/installations/127190964";
 
 fn main() -> io::Result<()> {
     intro("init-env")?;
@@ -93,7 +94,17 @@ fn main() -> io::Result<()> {
         setup_secrets,
         setup_branch_rules,
     ) {
-        Ok(dir) => outro(format!("Done! Run: cd {}", dir.display()))?,
+        Ok(dir) => {
+            let done = format!("Done! Run: cd {}", dir.display());
+            if setup_secrets {
+                outro_note(
+                    done,
+                    format!("Add this repository to the GitHub App:\n{GITHUB_APP_INSTALL_URL}"),
+                )?;
+            } else {
+                outro(done)?;
+            }
+        }
         Err(err) => outro_cancel(format!("Failed: {err}"))?,
     }
 
