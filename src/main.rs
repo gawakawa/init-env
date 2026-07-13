@@ -55,8 +55,11 @@ fn main() -> io::Result<()> {
         }
     };
 
-    let mut template_prompt =
-        select("Flake template").item(SKIP_TEMPLATE, SKIP_TEMPLATE, "Do not apply a template");
+    let mut template_prompt = select("Flake template").filter_mode().item(
+        SKIP_TEMPLATE,
+        SKIP_TEMPLATE,
+        "Do not apply a template",
+    );
     for (name, hint) in &templates {
         template_prompt = template_prompt.item(name.as_str(), name.as_str(), hint.as_str());
     }
